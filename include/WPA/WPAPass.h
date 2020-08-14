@@ -128,6 +128,11 @@ public:
         return "WPAPass";
     }
 
+    PointerAnalysis* getPointerAnalysis()
+    {
+        return _pta;
+    }
+
 private:
     /// Create pointer analysis according to specified kind and analyze the module.
     void runPointerAnalysis(SVFModule* svfModule, u32_t kind);

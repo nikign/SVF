@@ -26,8 +26,10 @@
  // Author: Yulei Sui,
  */
 
-#include "SVF-FE/LLVMUtil.h"
-#include "WPA/WPAPass.h"
+#include <SVF-FE/LLVMUtil.h>
+#include <WPA/WPAPass.h>
+#include <Util/BasicTypes.h>
+#include <llvm/ADT/GraphTraits.h>
 
 using namespace llvm;
 using namespace std;
@@ -35,6 +37,53 @@ using namespace SVF;
 
 static llvm::cl::opt<std::string> InputFilename(cl::Positional,
         llvm::cl::desc("<input bitcode>"), llvm::cl::init("-"));
+
+
+uint64_t getBBCounter(const llvm::BasicBlock *BB) {
+
+  if(BB==NULL){
+      printf("\nBBConst is null\n");
+      return(-2);
+  }
+
+  printf("\nBB pointer: %p ---\n", BB);
+
+  MDNode* BBid_meta = NULL;
+  uint64_t block_counter;
+
+  if (BB->size() == 0)
+  {
+      printf("There is a basic block with no instructions in the program.\n");
+      exit(1);
+  }
+  if (BB->getInstList().empty()){
+      printf("BB inst list was empty.\n");
+      return(-5);
+  }
+
+  for (const Instruction& instr : BB->getInstList()) {
+        if (!instr.hasMetadata())
+        {
+            printf("The first instruction of the block should include block id, have you instrumented the code with set-counter-BBid-llvm-pass first?");
+            continue;
+        }
+        BBid_meta = instr.getMetadata("BBid");
+        break;
+  }
+
+  if(!BBid_meta){
+    printf("\nSome block did not have ID in it\n");
+    return(-3);
+  }
+
+  std::string meta_string = cast<MDString>(BBid_meta->getOperand(0))->getString();
+
+  block_counter = std::strtoull(meta_string.c_str(), NULL, 16);
+
+  printf("\n block id: %llu\n", block_counter);
+
+  return(block_counter);
+}
 
 
 int main(int argc, char ** argv)
@@ -51,6 +100,14 @@ int main(int argc, char ** argv)
 
     WPAPass *wpa = new WPAPass();
     wpa->runOnModule(svfModule);
+
+    ICFG *G = wpa->getPointerAnalysis()->getPAG()->getICFG();
+    for (const auto Node : nodes<ICFG*>(G)){
+        const llvm::BasicBlock *Node_bb = Node->getBB();
+        getBBCounter(Node_bb);
+    }
+    const std::string file_name = "icfg_custom_simple";
+    G->dump(file_name, true);
 
     return 0;
 }
